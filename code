@@ -1,0 +1,100 @@
+#include <SoftwareSerial.h>
+
+#define RX 2
+#define TX 3
+#define TRIG_PIN 9  // Trigger pin for the ultrasonic sensor
+#define ECHO_PIN 10 // Echo pin for the ultrasonic sensor
+
+SoftwareSerial GSM(RX, TX); // RX (Module) → Pin 2, TX (Module) → Pin 3
+
+char* number = "+919345478669";  // Replace with your phone number
+char* text = "Alert! The dustbin is full.";  // Message content
+
+void setup() {
+  Serial.begin(9600);  // Start communication with the Serial Monitor
+  GSM.begin(9600);     // Start communication with GSM module
+  
+  pinMode(TRIG_PIN, OUTPUT);  // Set the TRIG_PIN as an output
+  pinMode(ECHO_PIN, INPUT);   // Set the ECHO_PIN as an input
+
+  Serial.println("Initializing GSM Module...");
+  delay(1000);
+
+  // Check GSM module
+  GSM.println("AT"); 
+  delay(1000);
+  printResponse();
+
+  // Set SMS mode to text
+  GSM.println("AT+CMGF=1");
+  delay(1000);
+  printResponse();
+}
+
+void loop() {
+  long duration;
+  int distance;
+
+  // Clear the TRIG_PIN
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+
+  // Send a 10-microsecond pulse to the TRIG_PIN
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  // Read the ECHO_PIN and measure the duration of the pulse
+  duration = pulseIn(ECHO_PIN, HIGH);
+
+  // Calculate the distance in centimeters
+  distance = duration * 0.034 / 2;
+
+  // Print the distance for debugging
+  Serial.print("Measured Distance: ");
+  Serial.print(distance);
+  Serial.println(" cm");
+
+  // Check if the distance is less than or equal to 10 cm (bin full threshold)
+  if (distance <= 10) {
+    Serial.println("Bin is full, sending message...");
+
+    // Send SMS
+    sendSMS();
+
+    // Delay to avoid sending multiple messages
+    delay(10000);  // Wait for 10 seconds before next check
+  } else {
+    Serial.println("Bin is not full.");
+  }
+
+  delay(2000);  // Wait for 2 seconds before the next loop
+}
+
+void sendSMS() {
+  // Set the recipient's phone number
+  GSM.print("AT+CMGS=\"");
+  GSM.print(number);
+  GSM.println("\"");
+  delay(1000);
+  printResponse();
+
+  // Write the message content
+  GSM.print(text);
+  delay(500);
+
+  // Send the message
+  GSM.write(26); // ASCII code for Ctrl+Z to send the SMS
+  delay(5000);   // Wait for the SMS to be sent
+
+  // Check the GSM module's response
+  printResponse();
+}
+
+void printResponse() {
+  while (GSM.available()) {
+    char c = GSM.read();
+    Serial.print(c); // Print response to Serial Monitor
+  }
+  Serial.println();
+}
